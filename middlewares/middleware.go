@@ -10,6 +10,13 @@ import (
 func BasicAuth(username, password string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Exclude /api/register from authentication
+			if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/api/register") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Allow unauthenticated GET requests to /api/people
 			if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/api/people") {
 				next.ServeHTTP(w, r)
 				return

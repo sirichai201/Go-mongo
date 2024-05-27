@@ -1,32 +1,48 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net/http"
 
-	"Go-mongo/middlewares"
-	"Go-mongo/modules"
-	"Go-mongo/routers"
+	"github.com/rs/cors"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/gorilla/mux"
+	"Go-mongo/collections"
+	"Go-mongo/middlewares"
+	"Go-mongo/routers"
 )
 
 func main() {
-	client, ctx, cancel, err := modules.ConnectToMongoDB("mongodb://localhost:27017")
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer cancel()
-	defer client.Disconnect(ctx)
 
-	r := mux.NewRouter()
-	apiRouter := routers.InitializeRoutes(client)
+	// Use your middleware here
+	authMiddleware := middlewares.BasicAuth("First", "112233")
 
-	// Apply the BasicAuth middleware to all routes except the GetPeople route
-	apiRouter.Use(middlewares.BasicAuth("First", "112233"))
-	r.PathPrefix("/api").Handler(apiRouter)
+	r := routers.InitializeRoutes(client)
 
-	fmt.Println("Server is running on port 8000")
-	log.Fatal(http.ListenAndServe(":8000", r))
+	// Apply the middleware to authenticated routes
+	authRoutes := r.PathPrefix("/api").Subrouter()
+	authRoutes.Use(authMiddleware)
+	authRoutes.HandleFunc("/people", collections.CreatePerson(client.Database("Go-mongo").Collection("go-mongo"))).Methods("POST")
+	authRoutes.HandleFunc("/people/{id}", collections.UpdatePerson(client.Database("Go-mongo").Collection("go-mongo"))).Methods("PUT")
+	authRoutes.HandleFunc("/people/{id}", collections.DeletePerson(client.Database("Go-mongo").Collection("go-mongo"))).Methods("DELETE")
+
+	// CORS handling
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+	})
+
+	handler := c.Handler(r)
+
+	log.Println("Server is running on port 8000")
+	log.Fatal(http.ListenAndServe(":8000", handler))
 }

@@ -13,11 +13,8 @@ func InitializeRoutes(client *mongo.Client) *mux.Router {
 
 	// Public route, no authentication required
 	r.HandleFunc("/api/people", collections.GetPeople(peopleCollection)).Methods("GET")
-
-	// Authenticated routes
-	r.HandleFunc("/api/people", collections.CreatePerson(peopleCollection)).Methods("POST")
-	r.HandleFunc("/api/people/{id}", collections.UpdatePerson(peopleCollection)).Methods("PUT")
-	r.HandleFunc("/api/people/{id}", collections.DeletePerson(peopleCollection)).Methods("DELETE")
+	r.HandleFunc("/api/login", collections.Login(client.Database("Go-mongo").Collection("go-mongo"))).Methods("POST")
+	r.HandleFunc("/api/register", collections.Register(client.Database("Go-mongo").Collection("go-mongo"))).Methods("POST")
 
 	return r
 }
